@@ -2,6 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 
+// Add BigInt serialization support for JSON
+BigInt.prototype['toJSON'] = function () {
+  return this.toString();
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -25,12 +30,11 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const port = process.env.PORT || 3000;
-  // Cloud Run requires binding to 0.0.0.0
   await app.listen(port, '0.0.0.0');
  
-  console.log(`🚀 Books Service running on port: ${port}`);
-  console.log(`📚 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔐 JWT Secret configured: ${!!process.env.JWT_SECRET}`);
+  console.log(`Books Service running on port: ${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`JWT Secret configured: ${!!process.env.JWT_SECRET}`);
 }
 
 if (require.main === module) {

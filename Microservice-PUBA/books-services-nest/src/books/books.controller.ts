@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { BooksService } from './books.service';
 import { CreateBookDto } from './dto/create-book.dto';
+import { UpdateBookDto } from './dto/update-book.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -20,37 +22,21 @@ import { Roles } from '../decorators/roles.decorator';
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
-  /**
-   * GET /books
-   * Public access - List all books
-   */
   @Get()
   findAll() {
     return this.booksService.findAll();
   }
 
-  /**
-   * GET /books/stats
-   * Public access - Get statistics
-   */
   @Get('stats')
   getStatistics() {
     return this.booksService.getStatistics();
   }
 
-  /**
-   * GET /books/:id
-   * Public access - Get book detail with items
-   */
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.booksService.findOne(id);
   }
 
-  /**
-   * POST /books
-   * Admin only - Create new book catalog
-   */
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
@@ -59,10 +45,17 @@ export class BooksController {
     return this.booksService.create(createBookDto);
   }
 
-  /**
-   * DELETE /books/:id
-   * Admin only - Remove book from catalog
-   */
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @HttpCode(HttpStatus.OK)
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateBookDto: UpdateBookDto,
+  ) {
+    return this.booksService.update(id, updateBookDto);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')

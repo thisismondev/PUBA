@@ -156,7 +156,41 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-#### 5. DELETE /api/books/:id
+#### 5. PATCH /api/books/:id
+**Update informasi buku**
+
+- **Access:** Admin only
+- **Headers:** `Authorization: Bearer <TOKEN>`
+- **Body:** (semua field optional, kirim hanya yang ingin diubah)
+```json
+{
+  "title": "Harry Potter and the Philosopher's Stone",
+  "publication_year": 1997,
+  "cover_url": "https://example.com/new-cover.jpg"
+}
+```
+- **Response:**
+```json
+{
+  "id": "1",
+  "isbn": "978-0439708180",
+  "title": "Harry Potter and the Philosopher's Stone",
+  "author": "J.K. Rowling",
+  "publisher": "Scholastic",
+  "category": "Fantasy",
+  "publication_year": 1997,
+  "cover_url": "https://example.com/new-cover.jpg",
+  "created_at": "2025-01-01T00:00:00.000Z",
+  "updated_at": "2025-01-15T10:30:00.000Z"
+}
+```
+- **Error:** 
+  - `404` - Buku tidak ditemukan
+  - `409` - ISBN sudah digunakan buku lain (jika mengubah ISBN)
+
+---
+
+#### 6. DELETE /api/books/:id
 **Hapus buku dari katalog**
 
 - **Access:** Admin only
@@ -173,7 +207,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ### **Book Items Module** (Inventory Management)
 
-#### 6. GET /api/book-items/:id
+#### 7. GET /api/book-items/:id
 **Detail item fisik buku**
 
 - **Access:** Public
@@ -197,7 +231,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-#### 7. GET /api/book-items/:id/availability
+#### 8. GET /api/book-items/:id/availability
 **Cek ketersediaan item**
 
 - **Access:** Public (digunakan oleh loans-service)
@@ -212,7 +246,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-#### 8. GET /api/book-items/by-book/:bookId
+#### 9. GET /api/book-items/by-book/:bookId
 **Daftar semua item untuk buku tertentu**
 
 - **Access:** Public
@@ -220,7 +254,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-#### 9. POST /api/book-items
+#### 10. POST /api/book-items
 **Tambah item fisik baru**
 
 - **Access:** Admin only
@@ -238,7 +272,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-#### 10. PATCH /api/book-items/:id/status ⚠️ **CRITICAL**
+#### 11. PATCH /api/book-items/:id/status ⚠️ **CRITICAL**
 **Update status item (untuk inter-service communication)**
 
 - **Access:** Admin OR valid JWT (system-to-system)
@@ -411,6 +445,17 @@ curl -X POST http://localhost:3000/api/books \
     "title": "The Hobbit",
     "author": "J.R.R. Tolkien",
     "isbn": "978-0547928227"
+  }'
+```
+
+### Update Book (Admin)
+```bash
+curl -X PATCH http://localhost:3000/api/books/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "The Hobbit - Special Edition",
+    "publication_year": 2020
   }'
 ```
 

@@ -26,23 +26,32 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const secret = process.env.JWT_SECRET;
-      
       if (!secret) {
         throw new Error('JWT_SECRET tidak dikonfigurasi di environment');
       }
 
-      const payload = jwt.verify(token, secret) as JwtPayload;
+      const payload = jwt.verify(token, secret) as any;
+      
+      // Normalize payload - support both 'id' and 'user_id'
+      const normalizedPayload: JwtPayload = {
+        user_id: payload.user_id || payload.id,
+        role: payload.role,
+        iat: payload.iat,
+        exp: payload.exp,
+      };
       
       // Validate payload structure
-      if (!payload.user_id || !payload.role) {
+      if (!normalizedPayload.user_id || !normalizedPayload.role) {
+        console.log('[JWT Debug] Invalid payload structure:', normalizedPayload);
         throw new UnauthorizedException('Token payload tidak valid');
       }
 
       // Attach user payload to request object
-      request['user'] = payload;
-      
+      request['user'] = normalizedPayload;
       return true;
     } catch (error) {
+      console.log('[JWT Debug] Error:', error.message, 'Name:', error.name);
+      
       if (error.name === 'TokenExpiredError') {
         throw new UnauthorizedException('Token telah expired');
       }

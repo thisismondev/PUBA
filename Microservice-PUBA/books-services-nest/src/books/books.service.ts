@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateBookDto } from './dto/create-book.dto';
+import { UpdateBookDto } from './dto/update-book.dto';
 import { Book } from '@prisma/client';
 
 @Injectable()
@@ -10,6 +11,16 @@ export class BooksService {
   async findAll(): Promise<Book[]> {
     return this.prisma.book.findMany({
       orderBy: { created_at: 'desc' },
+      include: {
+        items: {
+          select: {
+            id: true,
+            inventory_code: true,
+            status: true,
+            rack_location: true,
+          },
+        },
+      },
     });
   }
 
@@ -59,6 +70,34 @@ export class BooksService {
       }
       throw new Error('Gagal membuat buku baru');
     }
+  }
+
+  async update(id: number, updateBookDto: UpdateBookDto): Promise<Book> {
+    const book = await this.prisma.book.findUnique({
+      where: { id: BigInt(id) },
+    });
+
+    if (!book) {
+      throw new NotFoundException(`Buku dengan ID ${id} tidak ditemukan`);
+    }
+
+    // Check if ISBN is being changed and if new ISBN already exists
+    if (updateBookDto.isbn && updateBookDto.isbn !== book.isbn) {
+      const existingBook = await this.prisma.book.findUnique({
+        where: { isbn: updateBookDto.isbn },
+      });
+
+      if (existingBook) {
+        throw new ConflictException(
+          `Buku dengan ISBN ${updateBookDto.isbn} sudah ada`,
+        );
+      }
+    }
+
+    return await this.prisma.book.update({
+      where: { id: BigInt(id) },
+      data: updateBookDto,
+    });
   }
 
   async remove(id: number): Promise<{ message: string }> {

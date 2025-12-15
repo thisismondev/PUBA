@@ -21,7 +21,6 @@ export class PrismaService
 
   constructor() {
     const connectionString = process.env.DIRECT_URL;
-    
     if (!connectionString) {
       throw new Error('DIRECT_URL environment variable is not set');
     }
@@ -38,9 +37,9 @@ export class PrismaService
   async onModuleInit() {
     try {
       await this.$connect();
-      this.logger.log('✅ Database connected successfully');
+      this.logger.log('Database connected successfully');
     } catch (error) {
-      this.logger.error('❌ Failed to connect to database', error);
+      this.logger.error('Failed to connect to database', error);
       throw error;
     }
   }
