@@ -10,7 +10,7 @@
   "email": "student@example.com",
   "password": "password123",
   "role": "mahasiswa"
-}
+} 
 ```
 
 ### POST /login

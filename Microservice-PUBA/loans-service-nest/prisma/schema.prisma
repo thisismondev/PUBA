@@ -5,10 +5,48 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum LoanStatus {
+  active
+  returned
+  overdue
+
+  @@map("loan_status")
+}
+
+model Loan {
+  id           BigInt     @id @default(autoincrement())
+  user_id      Int // Logical reference to users-service
+  book_item_id BigInt // Logical reference to books-service
+  loan_date    DateTime   @default(now())
+  due_date     DateTime
+  return_date  DateTime?
+  status       LoanStatus @default(active)
+  notes        String?    @db.Text // Optional notes about the loan
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
+
+  fine Fine?
+
+  @@map("loans")
+}
+
+model Fine {
+  id         BigInt    @id @default(autoincrement())
+  loan_id    BigInt    @unique
+  amount     Decimal   @default(0) @db.Decimal(10, 2)
+  is_paid    Boolean   @default(false)
+  paid_at    DateTime? // Timestamp when fine was paid
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+
+  loan Loan @relation(fields: [loan_id], references: [id], onDelete: Cascade)
+
+  @@map("fines")
 }
