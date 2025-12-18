@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  # Users Service (Express.js)
+  users-service:
+    build:
+      context: ./service-user
+      dockerfile: Dockerfile
+    container_name: puba-users-service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=production
+    networks:
+      - puba-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Books Service (NestJS)
+  books-service:
+    build:
+      context: ./books-services-nest
+      dockerfile: Dockerfile
+    container_name: puba-books-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=production
+      - DATABASE_URL=${BOOKS_DATABASE_URL}
+      - DIRECT_URL=${BOOKS_DIRECT_URL}
+    networks:
+      - puba-network
+    depends_on:
+      - users-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Loans Service (NestJS)
+  loans-service:
+    build:
+      context: ./loans-service-nest
+      dockerfile: Dockerfile
+    container_name: puba-loans-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=production
+      - DATABASE_URL=${LOANS_DATABASE_URL}
+      - DIRECT_URL=${LOANS_DIRECT_URL}
+      - BOOKS_SERVICE_URL=http://books-service:3001
+    networks:
+      - puba-network
+    depends_on:
+      - users-service
+      - books-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # API Gateway (NestJS)
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: puba-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - NODE_ENV=production
+      - USERS_SERVICE_URL=http://users-service:3000
+      - BOOKS_SERVICE_URL=http://books-service:3001
+      - LOANS_SERVICE_URL=http://loans-service:3002
+    networks:
+      - puba-network
+    depends_on:
+      - users-service
+      - books-service
+      - loans-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  puba-network:
+    driver: bridge
+    name: puba-microservices
