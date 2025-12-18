@@ -54,7 +54,10 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => {
-                const isActive = pathname === item.url;
+                // Normalize pathname comparison to handle trailing slash
+                const normalizedPathname = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+                const normalizedUrl = item.url.endsWith('/') ? item.url.slice(0, -1) : item.url;
+                const isActive = normalizedPathname === normalizedUrl || pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive}>
