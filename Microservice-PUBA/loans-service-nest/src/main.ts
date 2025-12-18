@@ -25,7 +25,7 @@ async function bootstrap() {
   // Set global API prefix
   app.setGlobalPrefix('api');
 
-  const port = process.env.PORT || 3003;
+  const port = process.env.PORT || 3002;
 
   // Listen on 0.0.0.0 for Cloud Run compatibility
   await app.listen(port, '0.0.0.0');
