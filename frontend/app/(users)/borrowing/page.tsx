@@ -77,7 +77,7 @@ export default function BorrowingPage() {
 
       {/* Search Bar */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Cari berdasarkan judul atau penulis..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />

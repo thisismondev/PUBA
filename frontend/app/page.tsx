@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BookOpen } from 'lucide-react';
+import Image from 'next/image';
+import logo from '@/public/logo-puba.png';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -25,10 +27,10 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo & Title */}
         <div className="text-center mb-4">
-          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 mb-3">
-            <BookOpen className="w-6 h-6 text-white" />
+          <div className="inline-flex items-center justify-center rounded-full">
+            <Image src={logo} alt="Puba Connect Logo" width={120} height={120}/>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Puba Connect</h1>
+          <h1 className="text-2xl font-bold tracking-tight">PUBA Connect</h1>
           <p className="text-sm text-muted-foreground mt-1">Perpustakaan Utsman bin Affan</p>
         </div>
 

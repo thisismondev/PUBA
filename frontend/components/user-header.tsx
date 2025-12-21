@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
+import logo from '@/public/logo-puba.png';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { BookOpen, User, Home, Search, Clock } from 'lucide-react';
@@ -30,12 +32,12 @@ export default function UserHeader() {
         <div className="container flex h-16 items-center justify-between px-4">
           {/* Logo */}
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
-              <BookOpen className="h-5 w-5 text-white" />
+            <div className="flex h-10 w-10 items-center justify-center">
+              <Image src={logo} alt="Puba Connect Logo" width={40} height={40} className="object-contain" />
             </div>
             <div className="flex flex-col">
               <span className="text-lg font-bold">Puba Connect</span>
-              <span className="text-xs text-muted-foreground">Perpustakaan Digital</span>
+              <span className="text-xs text-muted-foreground">Perpustakaan Utsman bin Affan</span>
             </div>
           </Link>
 
