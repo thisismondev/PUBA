@@ -18,7 +18,6 @@ export default function UserHeader() {
     { href: '/dashboard', label: 'Home', icon: Home },
     { href: '/books', label: 'Katalog Buku', icon: BookOpen },
     { href: '/borrowing', label: 'Peminjaman Saya', icon: Clock },
-    { href: '/profile', label: 'Profil', icon: User },
   ];
 
   const handleLogout = () => {

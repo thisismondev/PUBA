@@ -1,6 +1,7 @@
 // app/page.tsx
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,16 +11,65 @@ import { BookOpen } from 'lucide-react';
 import Image from 'next/image';
 import logo from '@/public/logo-puba.png';
 import Link from 'next/link';
+import { authService } from '@/services/auth.service';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleAdminLogin = () => {
-    router.push('/admin');
-  };
+  const handleLogin = async () => {
+    if (!email || !password) {
+      toast.error('Email dan password harus diisi');
+      return;
+    }
 
-  const handleStudentLogin = () => {
-    router.push('/dashboard');
+    setIsLoading(true);
+    try {
+      // Clear any existing auth data first
+      localStorage.clear();
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      
+      const response = await authService.login({ email, password });
+      
+      // Backend returns: { message, token, user: { id, email, role } }
+      if (response.token && response.user) {
+        const role = response.user.role;
+        toast.success(`Login berhasil sebagai ${role === 'admin' ? 'Admin' : 'Mahasiswa'}!`);
+        
+        // Small delay to ensure token is saved
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Redirect based on role
+        if (role === 'admin') {
+          window.location.href = '/admin';
+        } else if (role === 'mahasiswa') {
+          window.location.href = '/dashboard';
+        } else {
+          toast.error('Role tidak dikenali: ' + role);
+        }
+      } else {
+        toast.error('Login gagal: Data tidak lengkap dari server');
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || 'Terjadi kesalahan saat login';
+      
+      // Berikan pesan yang lebih spesifik
+      if (errorMsg.includes('Password salah') || errorMsg.includes('password')) {
+        toast.error('Password yang Anda masukkan salah');
+      } else if (errorMsg.includes('Email tidak ditemukan') || errorMsg.includes('email')) {
+        toast.error('Email tidak terdaftar');
+      } else {
+        toast.error(errorMsg);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,7 +96,15 @@ export default function LoginPage() {
               <Label htmlFor="email" className="text-sm">
                 Email / NIM
               </Label>
-              <Input id="email" type="text" placeholder="Masukkan email atau NIM" className="h-9" />
+              <Input 
+                id="email" 
+                type="text" 
+                placeholder="Masukkan email atau NIM" 
+                className="h-9"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+              />
             </div>
 
             {/* Password */}
@@ -54,16 +112,26 @@ export default function LoginPage() {
               <Label htmlFor="password" className="text-sm">
                 Password
               </Label>
-              <Input id="password" type="password" placeholder="••••••••" className="h-9" />
+              <Input 
+                id="password" 
+                type="password" 
+                placeholder="••••••••" 
+                className="h-9"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                disabled={isLoading}
+              />
             </div>
 
-            {/* Login Buttons */}
+            {/* Login Button */}
             <div className="space-y-2 pt-2">
-              <Button onClick={handleAdminLogin} className="w-full h-9">
-                Login sebagai Admin
-              </Button>
-              <Button onClick={handleStudentLogin} variant="outline" className="w-full h-9">
-                Login sebagai Mahasiswa
+              <Button 
+                onClick={handleLogin} 
+                className="w-full h-9"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Loading...' : 'Login'}
               </Button>
             </div>
           </CardContent>

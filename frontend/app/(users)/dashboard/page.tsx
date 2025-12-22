@@ -5,72 +5,85 @@ import { BookOpen, Clock, CheckCircle, AlertCircle, TrendingUp } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { loansService } from '@/services/loans.service';
+import { Loan } from '@/types/api';
+import { toast } from 'sonner';
 
 export default function DashboardPage() {
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadLoans();
+  }, []);
+
+  const loadLoans = async () => {
+    try {
+      setIsLoading(true);
+      const data = await loansService.getMyLoans();
+      setLoans(data);
+    } catch (error: any) {
+      console.error('Error loading loans:', error);
+      toast.error('Gagal memuat data peminjaman');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const calculateDaysLeft = (dueDate: string) => {
+    const due = new Date(dueDate);
+    const today = new Date();
+    const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  // Calculate stats from loans data
+  const activeBorrowings = loans.filter(loan => loan.status === 'active' || loan.status === 'overdue');
+  const overdueBorrowings = loans.filter(loan => loan.status === 'overdue');
+  const completedBorrowings = loans.filter(loan => loan.status === 'returned');
+  const nearDueBorrowings = activeBorrowings.filter(loan => {
+    const daysLeft = calculateDaysLeft(loan.due_date);
+    return daysLeft > 0 && daysLeft <= 3 && loan.status === 'active';
+  });
+
   const stats = [
     {
       title: 'Buku Dipinjam',
-      value: '3',
+      value: activeBorrowings.length.toString(),
       icon: BookOpen,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
       description: 'Total aktif',
     },
     {
-      title: 'Belum Dikembalikan',
-      value: '2',
+      title: 'Segera Jatuh Tempo',
+      value: nearDueBorrowings.length.toString(),
       icon: Clock,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',
-      description: 'Segera kembalikan',
+      description: '≤ 3 hari lagi',
     },
     {
       title: 'Terlambat',
-      value: '1',
+      value: overdueBorrowings.length.toString(),
       icon: AlertCircle,
       color: 'text-red-600',
       bgColor: 'bg-red-100',
-      description: 'Ada denda',
+      description: 'Perlu dikembalikan',
     },
     {
       title: 'Riwayat',
-      value: '15',
+      value: completedBorrowings.length.toString(),
       icon: CheckCircle,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-100',
-      description: 'Total peminjaman',
+      description: 'Selesai',
     },
   ];
 
-  const recentBorrowings = [
-    {
-      id: 1,
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      borrowDate: '2025-12-15',
-      dueDate: '2025-12-29',
-      status: 'active',
-      daysLeft: 8,
-    },
-    {
-      id: 2,
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      borrowDate: '2025-12-10',
-      dueDate: '2025-12-24',
-      status: 'active',
-      daysLeft: 3,
-    },
-    {
-      id: 3,
-      title: 'The Great Gatsby',
-      author: 'F. Scott Fitzgerald',
-      borrowDate: '2025-12-01',
-      dueDate: '2025-12-15',
-      status: 'late',
-      daysLate: 6,
-    },
-  ];
+  // Recent borrowings (last 3 active)
+  const recentBorrowings = activeBorrowings.slice(0, 3);
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6 md:space-y-8">
@@ -108,41 +121,69 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <CardTitle className="text-lg md:text-xl">Peminjaman Saya</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/borrowing">Lihat Semua</Link>
+              <Link href="/borrowing">Lihat Semua</Link>
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {recentBorrowings.map((book) => (
-                <div key={book.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3">
-                  <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
-                    <div className="h-14 w-10 md:h-16 md:w-12 bg-gradient-to-br from-gray-400 to-gray-600 rounded flex items-center justify-center flex-shrink-0">
-                      <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm md:text-base truncate">{book.title}</h4>
-                      <p className="text-xs md:text-sm text-muted-foreground truncate">{book.author}</p>
-                      <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-1 text-xs text-muted-foreground">
-                        <span>Pinjam: {book.borrowDate}</span>
-                        <span className="hidden md:inline">•</span>
-                        <span>Tempo: {book.dueDate}</span>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground text-sm">Memuat data...</p>
+              </div>
+            ) : recentBorrowings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Belum ada peminjaman aktif</p>
+                <Button className="mt-4" size="sm" asChild>
+                  <Link href="/books">Pinjam Buku</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentBorrowings.map((loan) => {
+                  const daysLeft = calculateDaysLeft(loan.due_date);
+                  const isOverdue = loan.status === 'overdue';
+                  const formatDate = (dateString: string) => {
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                  };
+                  return (
+                    <div key={loan.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors gap-3">
+                      <div className="flex items-start md:items-center gap-3 md:gap-4 flex-1">
+                        {loan.book?.cover_url ? (
+                          <img 
+                            src={loan.book.cover_url} 
+                            alt={loan.book.title}
+                            className="h-14 w-10 md:h-16 md:w-12 object-cover rounded flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="h-14 w-10 md:h-16 md:w-12 bg-gradient-to-br from-gray-400 to-gray-600 rounded flex items-center justify-center flex-shrink-0">
+                            <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm md:text-base truncate">{loan.book?.title || 'Book'}</h4>
+                          <p className="text-xs md:text-sm text-muted-foreground truncate">{loan.book?.author || 'Author'}</p>
+                          <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-1 text-xs text-muted-foreground">
+                            <span>Pinjam: {formatDate(loan.loan_date)}</span>
+                            <span className="hidden md:inline">•</span>
+                            <span>Tempo: {formatDate(loan.due_date)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!isOverdue ? (
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                            {daysLeft > 0 ? `${daysLeft} hari lagi` : 'Jatuh tempo hari ini'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">Terlambat {Math.abs(daysLeft)} hari</Badge>
+                        )}
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {book.status === 'active' ? (
-                      <>
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                          {book.daysLeft} hari lagi
-                        </Badge>
-                      </>
-                    ) : (
-                      <Badge variant="destructive">Terlambat {book.daysLate} hari</Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -150,7 +191,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="hover:border-primary transition-colors cursor-pointer group">
-          <Link href="/dashboard/books">
+          <Link href="/books">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-blue-100 text-blue-600 rounded-xl group-hover:bg-blue-200 transition-colors">
@@ -166,7 +207,7 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="hover:border-primary transition-colors cursor-pointer group">
-          <Link href="/dashboard/borrowing">
+          <Link href="/borrowing">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-orange-100 text-orange-600 rounded-xl group-hover:bg-orange-200 transition-colors">

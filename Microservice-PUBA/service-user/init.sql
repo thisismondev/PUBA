@@ -39,18 +39,8 @@ CREATE TABLE IF NOT EXISTS `mahasiswa` (
     CONSTRAINT `mahasiswa_ibfk_2` FOREIGN KEY (`id_user`) REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Insert sample data for fakultas
-INSERT IGNORE INTO `fakultas` (`kodeFakultas`, `namaFakultas`, `programStudi`, `thnMasuk`, `thnLulus`, `semester`) 
-VALUES 
-    ('FIK', 'Fakultas Ilmu Komputer', 'Teknik Informatika', 2022, 2026, 8),
-    ('FEB', 'Fakultas Ekonomi dan Bisnis', 'Sistem Informasi', 2022, 2026, 6);
-
--- Insert sample admin user (password: admin123 - needs to be hashed with bcrypt)
--- You need to replace this with actual bcrypt hash
-INSERT IGNORE INTO `user` (`email`, `password`, `role`) 
-VALUES ('admin@example.com', '$2b$10$vgClqAi2B9ZkJLJ8q9mBou8OeThUzUgJbFA6DtTKFmW53H17gRjtS', 'admin');
-
--- Insert sample regular user (password: user123)
-INSERT IGNORE INTO `user` (`email`, `password`, `role`) 
-VALUES ('user@example.com', '$2b$10$6IxIfSJWe3wA6Gb6wXDDD.AWnZCPdoY054ryfBV1NvR/XonwxzVzG', 'user');
-
+-- Insert default admin user
+-- Password: admin123 (hashed with bcrypt)
+INSERT INTO `user` (`email`, `password`, `role`, `created_at`, `updated_at`) 
+VALUES ('admin@example.com', '$2b$10$TWRrVU/0DdIjSO4kLoJCputozyGPz0E3mSIJ5Ns7GP/OKPTLZHGi2', 'admin', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON DUPLICATE KEY UPDATE `email` = `email`;

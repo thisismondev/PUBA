@@ -114,6 +114,7 @@ services:
       - DATABASE_URL=${LOANS_DATABASE_URL}
       - DIRECT_URL=${LOANS_DIRECT_URL}
       - BOOKS_SERVICE_URL=http://books-service:3001
+      - USERS_SERVICE_URL=http://users-service:3000
     networks:
       - puba-network
     deploy:

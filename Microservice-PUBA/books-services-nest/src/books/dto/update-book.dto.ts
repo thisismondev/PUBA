@@ -28,6 +28,6 @@ export class UpdateBookDto {
   publication_year?: number;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
   cover_url?: string;
 }

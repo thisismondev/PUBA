@@ -5,46 +5,113 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { BookOpen, Users, Clock, TrendingUp, ArrowUpRight, MoreHorizontal } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useState, useEffect } from 'react';
+import { booksService } from '@/services/books.service';
+import { loansService } from '@/services/loans.service';
+import { Book, Loan } from '@/types/api';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 export default function Page() {
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch books dengan availability
+      const booksData = await booksService.getBooks();
+      const booksWithAvailability = await Promise.all(
+        booksData.map(async (book) => {
+          try {
+            const items = await booksService.getBookItemsByBook(book.id);
+            return {
+              ...book,
+              totalCopies: items.length,
+              availableCopies: items.filter(item => item.status === 'available').length,
+            };
+          } catch {
+            return {
+              ...book,
+              totalCopies: 0,
+              availableCopies: 0,
+            };
+          }
+        })
+      );
+      
+      // Fetch loans
+      const loansData = await loansService.getAllLoans();
+      
+      setBooks(booksWithAvailability);
+      setLoans(loansData);
+    } catch (error: any) {
+      console.error('Error loading dashboard data:', error);
+      toast.error('Gagal memuat data dashboard');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Calculate statistics
+  const totalBooks = books.reduce((sum, book) => sum + (book.totalCopies || 0), 0);
+  const borrowedBooks = books.reduce((sum, book) => sum + ((book.totalCopies || 0) - (book.availableCopies || 0)), 0);
+  const activeLoans = loans.filter(loan => loan.status === 'active' || loan.status === 'overdue').length;
+  const overdueLoans = loans.filter(loan => loan.status === 'overdue').length;
+
   const stats = [
     {
       title: 'Total Buku',
-      value: '22',
+      value: totalBooks.toString(),
       icon: BookOpen,
     },
     {
       title: 'Buku Dipinjam',
-      value: '8',
+      value: borrowedBooks.toString(),
       icon: Clock,
     },
     {
-      title: 'Anggota Aktif',
-      value: '3',
+      title: 'Peminjaman Aktif',
+      value: activeLoans.toString(),
       icon: Users,
     },
     {
       title: 'Keterlambatan',
-      value: '3',
+      value: overdueLoans.toString(),
       icon: TrendingUp,
     },
   ];
 
-  // Data statistik peminjaman per bulan
-  const borrowingData = [
-    { month: 'Jan', peminjaman: 45, pengembalian: 42, terlambat: 3 },
-    { month: 'Feb', peminjaman: 52, pengembalian: 48, terlambat: 4 },
-    { month: 'Mar', peminjaman: 38, pengembalian: 35, terlambat: 2 },
-    { month: 'Apr', peminjaman: 61, pengembalian: 58, terlambat: 5 },
-    { month: 'Mei', peminjaman: 48, pengembalian: 46, terlambat: 2 },
-    { month: 'Jun', peminjaman: 55, pengembalian: 52, terlambat: 4 },
-    { month: 'Jul', peminjaman: 67, pengembalian: 63, terlambat: 6 },
-    { month: 'Agu', peminjaman: 58, pengembalian: 55, terlambat: 3 },
-    { month: 'Sep', peminjaman: 72, pengembalian: 68, terlambat: 5 },
-    { month: 'Okt', peminjaman: 64, pengembalian: 61, terlambat: 4 },
-    { month: 'Nov', peminjaman: 69, pengembalian: 65, terlambat: 5 },
-    { month: 'Des', peminjaman: 58, pengembalian: 54, terlambat: 4 },
-  ];
+  // Calculate monthly statistics from loans data
+  const calculateMonthlyStats = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const currentYear = new Date().getFullYear();
+    
+    return months.map((month, index) => {
+      const monthLoans = loans.filter(loan => {
+        const loanDate = new Date(loan.loan_date);
+        return loanDate.getMonth() === index && loanDate.getFullYear() === currentYear;
+      });
+      
+      const peminjaman = monthLoans.length;
+      const pengembalian = monthLoans.filter(loan => loan.return_date).length;
+      const terlambat = monthLoans.filter(loan => loan.status === 'overdue').length;
+      
+      return { month, peminjaman, pengembalian, terlambat };
+    });
+  };
+
+  const borrowingData = calculateMonthlyStats();
+  const totalPeminjaman = borrowingData.reduce((sum, data) => sum + data.peminjaman, 0);
+  const totalPengembalian = borrowingData.reduce((sum, data) => sum + data.pengembalian, 0);
+  const totalTerlambat = borrowingData.reduce((sum, data) => sum + data.terlambat, 0);
 
   const recentActivities = [
     { user: 'John Doe', action: 'meminjam buku "Algoritma & Struktur Data"', time: '2 menit yang lalu', color: 'bg-blue-500' },
@@ -112,15 +179,15 @@ export default function Page() {
             {/* Summary Stats */}
             <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
               <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600">687</p>
+                <p className="text-2xl font-bold text-blue-600">{totalPeminjaman}</p>
                 <p className="text-xs text-muted-foreground">Total Peminjaman</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">647</p>
+                <p className="text-2xl font-bold text-green-600">{totalPengembalian}</p>
                 <p className="text-xs text-muted-foreground">Total Pengembalian</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-red-600">47</p>
+                <p className="text-2xl font-bold text-red-600">{totalTerlambat}</p>
                 <p className="text-xs text-muted-foreground">Total Terlambat</p>
               </div>
             </div>
@@ -134,7 +201,7 @@ export default function Page() {
           </CardHeader>
           <CardContent className="flex-1 flex flex-col pt-0 pb-4">
             <div className="flex flex-col flex-1 justify-between">
-              <Button className="w-full justify-start h-auto py-3" variant="default">
+              <Button onClick={() => router.push('/admin/books')} className="w-full justify-start h-auto py-3" variant="default">
                 <div className="flex items-center gap-3 w-full">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/20">
                     <BookOpen className="h-5 w-5" />
@@ -146,7 +213,7 @@ export default function Page() {
                 </div>
               </Button>
 
-              <Button className="w-full justify-start h-auto py-3" variant="outline">
+              <Button onClick={() => router.push('/admin/register')} className="w-full justify-start h-auto py-3" variant="outline">
                 <div className="flex items-center gap-3 w-full">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
                     <Users className="h-5 w-5 text-blue-600" />
@@ -267,38 +334,48 @@ export default function Page() {
           <CardDescription>Daftar buku yang sedang dipinjam</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Anggota</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Buku</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tanggal Pinjam</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Jatuh Tempo</th>
-                  <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  { borrower: 'Ahmad Fauzi', book: 'Clean Code', borrowDate: '2025-11-25', dueDate: '2025-12-09', status: 'late' },
-                  { borrower: 'Ahmad Fauzi', book: 'Sapiens', borrowDate: '2025-11-28', dueDate: '2025-12-12', status: 'late' },
-                  { borrower: 'Siti Nurhaliza', book: 'The Great Gatsby', borrowDate: '2025-11-20', dueDate: '2025-12-04', status: 'late' },
-                  { borrower: 'Budi Santoso', book: 'Algoritma & Struktur Data', borrowDate: '2025-12-08', dueDate: '2025-12-22', status: 'normal' },
-                  { borrower: 'Dewi Lestari', book: 'Basis Data Lanjut', borrowDate: '2025-12-10', dueDate: '2025-12-24', status: 'normal' },
-                ].map((loan, index) => (
-                  <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
-                    <td className="py-3 px-4">{loan.borrower}</td>
-                    <td className="py-3 px-4">{loan.book}</td>
-                    <td className="py-3 px-4 text-muted-foreground">{loan.borrowDate}</td>
-                    <td className="py-3 px-4 text-muted-foreground">{loan.dueDate}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={loan.status === 'late' ? 'destructive' : 'secondary'}>{loan.status === 'late' ? 'Terlambat' : 'Normal'}</Badge>
-                    </td>
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Memuat data...</div>
+          ) : loans.filter(loan => loan.status === 'active' || loan.status === 'overdue').length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">Tidak ada peminjaman aktif</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Anggota</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Buku</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tanggal Pinjam</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Jatuh Tempo</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {loans
+                    .filter(loan => loan.status === 'active' || loan.status === 'overdue')
+                    .slice(0, 5)
+                    .map((loan, index) => {
+                      const isOverdue = new Date(loan.due_date) < new Date();
+                      const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                      
+                      return (
+                        <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
+                          <td className="py-3 px-4">{loan.user?.email || 'User'}</td>
+                          <td className="py-3 px-4">{loan.book?.title || 'Book'}</td>
+                          <td className="py-3 px-4 text-muted-foreground">{formatDate(loan.loan_date)}</td>
+                          <td className="py-3 px-4 text-muted-foreground">{formatDate(loan.due_date)}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant={isOverdue ? 'destructive' : 'secondary'}>
+                              {isOverdue ? 'Terlambat' : 'Normal'}
+                            </Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

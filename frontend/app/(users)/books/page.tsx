@@ -6,81 +6,85 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BookOpen, Search, ChevronDown, Star } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { booksService } from '@/services/books.service';
+import { loansService } from '@/services/loans.service';
+import { Book } from '@/types/api';
+import { toast } from 'sonner';
 
 export default function BooksPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [books, setBooks] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [borrowingIds, setBorrowingIds] = useState<Set<string>>(new Set());
 
-  const books = [
-    {
-      id: 1,
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      category: 'Teknologi',
-      year: 2008,
-      available: 3,
-      total: 5,
-      rating: 4.8,
-      description: 'Panduan menulis kode yang bersih dan maintainable',
-    },
-    {
-      id: 2,
-      title: 'The Great Gatsby',
-      author: 'F. Scott Fitzgerald',
-      category: 'Fiksi',
-      year: 1925,
-      available: 2,
-      total: 3,
-      rating: 4.5,
-      description: 'Novel klasik tentang American Dream',
-    },
-    {
-      id: 3,
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      category: 'Non-Fiksi',
-      year: 2011,
-      available: 1,
-      total: 4,
-      rating: 4.7,
-      description: 'Sejarah singkat umat manusia',
-    },
-    {
-      id: 4,
-      title: 'Algoritma & Struktur Data',
-      author: 'Dr. Rinaldi Munir',
-      category: 'Teknologi',
-      year: 2020,
-      available: 4,
-      total: 6,
-      rating: 4.6,
-      description: 'Dasar-dasar algoritma dan struktur data',
-    },
-    {
-      id: 5,
-      title: 'Basis Data Lanjut',
-      author: 'Prof. Bambang',
-      category: 'Teknologi',
-      year: 2019,
-      available: 2,
-      total: 5,
-      rating: 4.4,
-      description: 'Konsep lanjutan dalam database management',
-    },
-    {
-      id: 6,
-      title: 'Matematika Diskrit',
-      author: 'Dr. Ahmad',
-      category: 'Matematika',
-      year: 2018,
-      available: 3,
-      total: 4,
-      rating: 4.3,
-      description: 'Matematika untuk ilmu komputer',
-    },
-  ];
+  useEffect(() => {
+    loadBooks();
+  }, []);
+
+  const loadBooks = async () => {
+    try {
+      setIsLoading(true);
+      const data = await booksService.getBooks();
+      
+      // Add availability info to each book
+      const booksWithAvailability = await Promise.all(
+        data.map(async (book) => {
+          try {
+            const items = await booksService.getBookItemsByBook(book.id);
+            return {
+              ...book,
+              totalCopies: items.length,
+              availableCopies: items.filter(item => item.status === 'available').length,
+            };
+          } catch {
+            return {
+              ...book,
+              totalCopies: 0,
+              availableCopies: 0,
+            };
+          }
+        })
+      );
+      
+      setBooks(booksWithAvailability);
+    } catch (error: any) {
+      console.error('Error loading books:', error);
+      toast.error('Gagal memuat data buku');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBorrow = async (bookId: string) => {
+    setBorrowingIds(prev => new Set(prev).add(bookId));
+    try {
+      // Get available book items for this book
+      const bookItems = await booksService.getBookItemsByBook(bookId);
+      const availableItem = bookItems.find(item => item.status === 'available');
+      
+      if (!availableItem) {
+        toast.error('Tidak ada eksemplar yang tersedia');
+        return;
+      }
+
+      // Convert string ID to number
+      await loansService.createLoan({ book_item_id: parseInt(availableItem.id) });
+      toast.success('Buku berhasil dipinjam!');
+      loadBooks(); // Refresh untuk update availability
+    } catch (error: any) {
+      console.error('Error borrowing book:', error);
+      toast.error(error.response?.data?.message || 'Gagal meminjam buku');
+    } finally {
+      setBorrowingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(bookId);
+        return newSet;
+      });
+    }
+  };
 
   const filteredBooks = books.filter((book) => {
     const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) || book.author.toLowerCase().includes(searchQuery.toLowerCase());
@@ -126,7 +130,11 @@ export default function BooksPage() {
       </Card>
 
       {/* Books Grid */}
-      {filteredBooks.length === 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Memuat data buku...</p>
+        </div>
+      ) : filteredBooks.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -134,13 +142,24 @@ export default function BooksPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
           {filteredBooks.map((book) => (
             <Card key={book.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               {/* Book Cover */}
-              <div className="relative h-48 bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center">
-                <BookOpen className="h-20 w-20 text-white/80" />
-                {book.available === 0 && (
+              <div className="relative w-full aspect-[3/4] bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center overflow-hidden">
+                {book.cover_url ? (
+                  <img 
+                    src={book.cover_url} 
+                    alt={book.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <BookOpen className={`h-20 w-20 text-white/80 ${book.cover_url ? 'hidden' : ''}`} />
+                {(book.availableCopies || 0) === 0 && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <Badge variant="destructive" className="text-sm">
                       Tidak Tersedia
@@ -157,35 +176,36 @@ export default function BooksPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <Badge variant="secondary">{book.category}</Badge>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm font-medium">{book.rating}</span>
-                  </div>
+                  <Badge variant="secondary">{book.category || 'Umum'}</Badge>
+                  <span className="text-sm text-muted-foreground">{book.publication_year || '-'}</span>
                 </div>
-
-                <p className="text-xs text-muted-foreground line-clamp-2">{book.description}</p>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Ketersediaan:</span>
-                    <span className={`font-medium ${book.available > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {book.available}/{book.total}
+                    <span className={`font-medium ${(book.availableCopies || 0) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {book.availableCopies || 0} / {book.totalCopies || 0}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Tahun:</span>
-                    <span className="font-medium">{book.year}</span>
+                    <span className="text-muted-foreground">Penerbit:</span>
+                    <span className="font-medium text-xs">{book.publisher || '-'}</span>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-2">
-                  <Button className="flex-1" disabled={book.available === 0}>
-                    {book.available > 0 ? 'Pinjam' : 'Tidak Tersedia'}
-                  </Button>
-                  <Button variant="outline" size="icon">
-                    <BookOpen className="h-4 w-4" />
+                  <Button 
+                    className="flex-1" 
+                    disabled={(book.availableCopies || 0) === 0 || borrowingIds.has(book.id)}
+                    onClick={() => handleBorrow(book.id)}
+                  >
+                    {borrowingIds.has(book.id) 
+                      ? 'Memproses...' 
+                      : (book.availableCopies || 0) > 0 
+                      ? 'Pinjam' 
+                      : 'Tidak Tersedia'
+                    }
                   </Button>
                 </div>
               </CardContent>

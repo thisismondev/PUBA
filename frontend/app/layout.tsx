@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono, Roboto } from 'next/font/google';
 import './globals.css';
+import { Toaster } from 'sonner';
 
 const roboto = Roboto({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -25,9 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={roboto.variable}>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" className={roboto.variable} suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
         <main>{children}</main>
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );

@@ -307,14 +307,41 @@ export class LoansService {
   /**
    * GET /loans/my - Get current user's loan history
    */
-  async findUserLoans(userId: number): Promise<Loan[]> {
-    return this.prisma.loan.findMany({
+  async findUserLoans(userId: number): Promise<any[]> {
+    const loans = await this.prisma.loan.findMany({
       where: { user_id: userId },
       include: {
         fine: true,
       },
       orderBy: { created_at: 'desc' },
     });
+
+    // Fetch book details for each loan
+    const loansWithBooks = await Promise.all(
+      loans.map(async (loan) => {
+        try {
+          const response = await firstValueFrom(
+            this.httpService.get(
+              `${this.booksServiceUrl}/api/book-items/${loan.book_item_id}`,
+            ),
+          );
+          const bookItem = response.data;
+          return {
+            ...loan,
+            book: bookItem.book,
+          };
+        } catch (error) {
+          this.logger.warn(`Failed to fetch book for loan ${loan.id}: ${error.message}`);
+          // If book fetch fails, return loan without book info
+          return {
+            ...loan,
+            book: null,
+          };
+        }
+      }),
+    );
+
+    return loansWithBooks;
   }
 
   /**
@@ -327,5 +354,46 @@ export class LoansService {
       },
       orderBy: { created_at: 'desc' },
     });
+
+    // Fetch book and user details for each loan
+    const loansWithDetails = await Promise.all(
+      loans.map(async (loan) => {
+        let bookData = null;
+        let userData = null;
+
+        // Fetch book details
+        try {
+          const bookResponse = await firstValueFrom(
+            this.httpService.get(
+              `${this.booksServiceUrl}/api/book-items/${loan.book_item_id}`,
+            ),
+          );
+          bookData = bookResponse.data.book;
+        } catch (error) {
+          this.logger.warn(`Failed to fetch book for loan ${loan.id}`);
+        }
+
+        // Fetch user details from users-service
+        try {
+          const usersServiceUrl = process.env.USERS_SERVICE_URL || 'http://localhost:3000';
+          const userResponse = await firstValueFrom(
+            this.httpService.get(
+              `${usersServiceUrl}/internal/user/${loan.user_id}`,
+            ),
+          );
+          userData = userResponse.data;
+        } catch (error) {
+          this.logger.warn(`Failed to fetch user for loan ${loan.id}: ${error.message}`);
+        }
+
+        return {
+          ...loan,
+          book: bookData,
+          user: userData,
+        };
+      }),
+    );
+
+    return loansWithDetails;
   }
 }

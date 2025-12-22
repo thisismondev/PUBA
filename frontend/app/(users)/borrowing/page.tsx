@@ -6,66 +6,57 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BookOpen, Calendar, Clock, CheckCircle2, AlertCircle, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { loansService } from '@/services/loans.service';
+import { Loan } from '@/types/api';
+import { toast } from 'sonner';
 
 export default function BorrowingPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const activeBorrowings = [
-    {
-      id: 1,
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      borrowDate: '2025-12-15',
-      dueDate: '2025-12-29',
-      daysLeft: 8,
-      status: 'active',
-    },
-    {
-      id: 2,
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      borrowDate: '2025-12-10',
-      dueDate: '2025-12-24',
-      daysLeft: 3,
-      status: 'active',
-    },
-    {
-      id: 3,
-      title: 'The Great Gatsby',
-      author: 'F. Scott Fitzgerald',
-      borrowDate: '2025-12-01',
-      dueDate: '2025-12-15',
-      daysLate: 6,
-      fine: 30000,
-      status: 'late',
-    },
-  ];
+  useEffect(() => {
+    loadLoans();
+  }, []);
 
-  const completedBorrowings = [
-    {
-      id: 4,
-      title: 'Algoritma & Struktur Data',
-      author: 'Dr. Rinaldi Munir',
-      borrowDate: '2025-11-10',
-      returnDate: '2025-11-24',
-      dueDate: '2025-11-24',
-      fine: 0,
-    },
-    {
-      id: 5,
-      title: 'Basis Data Lanjut',
-      author: 'Prof. Bambang',
-      borrowDate: '2025-11-01',
-      returnDate: '2025-11-18',
-      dueDate: '2025-11-15',
-      fine: 15000,
-    },
-  ];
+  const loadLoans = async () => {
+    try {
+      setIsLoading(true);
+      const data = await loansService.getMyLoans();
+      setLoans(data);
+    } catch (error: any) {
+      console.error('Error loading loans:', error);
+      toast.error('Gagal memuat data peminjaman');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const filteredActive = activeBorrowings.filter((book) => book.title.toLowerCase().includes(searchQuery.toLowerCase()) || book.author.toLowerCase().includes(searchQuery.toLowerCase()));
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  };
 
-  const filteredCompleted = completedBorrowings.filter((book) => book.title.toLowerCase().includes(searchQuery.toLowerCase()) || book.author.toLowerCase().includes(searchQuery.toLowerCase()));
+  const calculateDaysLeft = (dueDate: string) => {
+    const due = new Date(dueDate);
+    const today = new Date();
+    const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  const activeBorrowings = loans.filter(loan => loan.status === 'active' || loan.status === 'overdue');
+  const completedBorrowings = loans.filter(loan => loan.status === 'returned');
+
+  const filteredActive = activeBorrowings.filter((loan) => 
+    loan.book?.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    loan.book?.author.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredCompleted = completedBorrowings.filter((loan) => 
+    loan.book?.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    loan.book?.author.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="flex-1 p-4 md:p-8 space-y-6">
@@ -94,7 +85,11 @@ export default function BorrowingPage() {
 
         {/* Active Borrowings */}
         <TabsContent value="active" className="space-y-4">
-          {filteredActive.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-muted-foreground">Memuat data...</p>
+            </div>
+          ) : filteredActive.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -102,76 +97,90 @@ export default function BorrowingPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredActive.map((book) => (
-              <Card key={book.id}>
-                <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row md:items-start gap-4">
-                    {/* Book Cover */}
-                    <div className="h-32 w-24 bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center flex-shrink-0 mx-auto md:mx-0">
-                      <BookOpen className="h-12 w-12 text-white" />
-                    </div>
-
-                    {/* Book Info */}
-                    <div className="flex-1 space-y-3">
-                      <div>
-                        <h3 className="text-lg font-semibold">{book.title}</h3>
-                        <p className="text-sm text-muted-foreground">{book.author}</p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-muted-foreground">Tanggal Pinjam</p>
-                            <p className="font-medium">{book.borrowDate}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="text-muted-foreground">Jatuh Tempo</p>
-                            <p className="font-medium">{book.dueDate}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Status */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {book.status === 'active' ? (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {book.daysLeft} hari lagi
-                          </Badge>
+            filteredActive.map((loan) => {
+              const daysLeft = calculateDaysLeft(loan.due_date);
+              const isOverdue = loan.status === 'overdue';
+              return (
+                <Card key={loan.id}>
+                  <CardContent className="p-6">
+                    <div className="flex flex-col md:flex-row md:items-start gap-4">
+                      {/* Book Cover */}
+                      <div className="h-32 w-24 rounded-lg overflow-hidden flex-shrink-0 mx-auto md:mx-0">
+                        {loan.book?.cover_url ? (
+                          <img 
+                            src={loan.book.cover_url} 
+                            alt={loan.book.title}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.innerHTML = '<div class="h-full w-full bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center"><svg class="h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg></div>';
+                              }
+                            }}
+                          />
                         ) : (
-                          <>
-                            <Badge variant="destructive">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              Terlambat {book.daysLate} hari
-                            </Badge>
-                            <Badge variant="outline" className="text-red-600 border-red-600">
-                              Denda: Rp {book.fine?.toLocaleString('id-ID')}
-                            </Badge>
-                          </>
+                          <div className="h-full w-full bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center">
+                            <BookOpen className="h-12 w-12 text-white" />
+                          </div>
                         )}
                       </div>
 
-                      {/* Action Button */}
-                      {book.status === 'late' && (
-                        <Button variant="outline" size="sm" className="w-full md:w-auto">
-                          Bayar Denda
-                        </Button>
-                      )}
+                      {/* Book Info */}
+                      <div className="flex-1 space-y-3">
+                        <div>
+                          <h3 className="text-lg font-semibold">{loan.book?.title || 'Book'}</h3>
+                          <p className="text-sm text-muted-foreground">{loan.book?.author || 'Author'}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-muted-foreground">Tanggal Pinjam</p>
+                              <p className="font-medium">{formatDate(loan.loan_date)}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-muted-foreground">Jatuh Tempo</p>
+                              <p className="font-medium">{formatDate(loan.due_date)}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!isOverdue ? (
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {daysLeft > 0 ? `${daysLeft} hari lagi` : 'Jatuh tempo hari ini'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Terlambat {Math.abs(daysLeft)} hari
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </TabsContent>
 
         {/* Completed Borrowings */}
         <TabsContent value="completed" className="space-y-4">
-          {filteredCompleted.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-muted-foreground">Memuat data...</p>
+            </div>
+          ) : filteredCompleted.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -179,20 +188,38 @@ export default function BorrowingPage() {
               </CardContent>
             </Card>
           ) : (
-            filteredCompleted.map((book) => (
-              <Card key={book.id}>
+            filteredCompleted.map((loan) => (
+              <Card key={loan.id}>
                 <CardContent className="p-6">
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
                     {/* Book Cover */}
-                    <div className="h-32 w-24 bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center flex-shrink-0 mx-auto md:mx-0">
-                      <BookOpen className="h-12 w-12 text-white" />
+                    <div className="h-32 w-24 rounded-lg overflow-hidden flex-shrink-0 mx-auto md:mx-0">
+                      {loan.book?.cover_url ? (
+                        <img 
+                          src={loan.book.cover_url} 
+                          alt={loan.book.title}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<div class="h-full w-full bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center"><svg class="h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg></div>';
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center">
+                          <BookOpen className="h-12 w-12 text-white" />
+                        </div>
+                      )}
                     </div>
 
                     {/* Book Info */}
                     <div className="flex-1 space-y-3">
                       <div>
-                        <h3 className="text-lg font-semibold">{book.title}</h3>
-                        <p className="text-sm text-muted-foreground">{book.author}</p>
+                        <h3 className="text-lg font-semibold">{loan.book?.title || 'Book'}</h3>
+                        <p className="text-sm text-muted-foreground">{loan.book?.author || 'Author'}</p>
                       </div>
 
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
@@ -200,20 +227,22 @@ export default function BorrowingPage() {
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <div>
                             <p className="text-muted-foreground">Pinjam</p>
-                            <p className="font-medium">{book.borrowDate}</p>
+                            <p className="font-medium">{formatDate(loan.loan_date)}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                           <div>
                             <p className="text-muted-foreground">Kembali</p>
-                            <p className="font-medium text-emerald-600">{book.returnDate}</p>
+                            <p className="font-medium text-emerald-600">
+                              {loan.return_date ? formatDate(loan.return_date) : '-'}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <div>
-                            <p className="text-muted-foreground">Denda</p>
-                            <p className={`font-medium ${book.fine > 0 ? 'text-red-600' : 'text-emerald-600'}`}>Rp {book.fine.toLocaleString('id-ID')}</p>
+                            <p className="text-muted-foreground">Status</p>
+                            <p className="font-medium text-emerald-600">Selesai</p>
                           </div>
                         </div>
                       </div>
@@ -221,7 +250,7 @@ export default function BorrowingPage() {
                       {/* Status */}
                       <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 w-fit">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Selesai
+                        Dikembalikan
                       </Badge>
                     </div>
                   </div>

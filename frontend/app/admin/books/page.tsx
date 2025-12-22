@@ -11,28 +11,21 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Pencil, Trash2, MoreVertical, ChevronDown, BookOpen } from 'lucide-react';
-import { useState } from 'react';
-
-type Book = {
-  id: number;
-  title: string;
-  author: string;
-  category: string;
-  year: number;
-  available: number;
-  total: number;
-  isbn?: string;
-  publisher?: string;
-  description?: string;
-};
+import { useState, useEffect } from 'react';
+import { booksService } from '@/services/books.service';
+import { Book } from '@/types/api';
+import { toast } from 'sonner';
 
 export default function BooksPage() {
+  const [books, setBooks] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     author: '',
@@ -41,65 +34,46 @@ export default function BooksPage() {
     isbn: '',
     publisher: '',
     total: '1',
-    description: '',
+    cover_url: '',
   });
 
-  const books = [
-    {
-      id: 1,
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      category: 'Teknologi',
-      year: 2008,
-      available: 3,
-      total: 5,
-    },
-    {
-      id: 2,
-      title: 'The Great Gatsby',
-      author: 'F. Scott Fitzgerald',
-      category: 'Fiksi',
-      year: 1925,
-      available: 2,
-      total: 3,
-    },
-    {
-      id: 3,
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      category: 'Non-Fiksi',
-      year: 2011,
-      available: 1,
-      total: 4,
-    },
-    {
-      id: 4,
-      title: 'Algoritma & Struktur Data',
-      author: 'Dr. Rinaldi Munir',
-      category: 'Teknologi',
-      year: 2020,
-      available: 4,
-      total: 6,
-    },
-    {
-      id: 5,
-      title: 'Basis Data Lanjut',
-      author: 'Prof. Bambang',
-      category: 'Teknologi',
-      year: 2019,
-      available: 2,
-      total: 5,
-    },
-    {
-      id: 6,
-      title: 'Matematika Diskrit',
-      author: 'Dr. Ahmad',
-      category: 'Matematika',
-      year: 2018,
-      available: 3,
-      total: 4,
-    },
-  ];
+  useEffect(() => {
+    loadBooks();
+  }, []);
+
+  const loadBooks = async () => {
+    try {
+      setIsLoading(true);
+      const data = await booksService.getBooks();
+      
+      // Fetch book items untuk setiap buku dan hitung ketersediaan
+      const booksWithAvailability = await Promise.all(
+        data.map(async (book) => {
+          try {
+            const items = await booksService.getBookItemsByBook(book.id);
+            return {
+              ...book,
+              totalCopies: items.length,
+              availableCopies: items.filter(item => item.status === 'available').length,
+            };
+          } catch {
+            return {
+              ...book,
+              totalCopies: 0,
+              availableCopies: 0,
+            };
+          }
+        })
+      );
+      
+      setBooks(booksWithAvailability);
+    } catch (error: any) {
+      console.error('Error loading books:', error);
+      toast.error('Gagal memuat data buku');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredBooks = books.filter((book) => {
     const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) || book.author.toLowerCase().includes(searchQuery.toLowerCase());
@@ -116,22 +90,56 @@ export default function BooksPage() {
     setFormData((prev) => ({ ...prev, category: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement API call to add book
-    console.log('Book data:', formData);
-    setIsAddDialogOpen(false);
-    // Reset form
-    setFormData({
-      title: '',
-      author: '',
-      category: 'Teknologi',
-      year: new Date().getFullYear().toString(),
-      isbn: '',
-      publisher: '',
-      total: '1',
-      description: '',
-    });
+    setIsSubmitting(true);
+    try {
+      // Create book first
+      const newBook = await booksService.createBook({
+        title: formData.title,
+        author: formData.author,
+        category: formData.category,
+        publication_year: parseInt(formData.year),
+        isbn: formData.isbn,
+        publisher: formData.publisher,
+        cover_url: formData.cover_url,
+      });
+
+      // Create book items based on total
+      const totalItems = parseInt(formData.total);
+      const createItemPromises = [];
+      for (let i = 1; i <= totalItems; i++) {
+        const inventoryCode = `${formData.isbn || 'BK'}-${Date.now()}-${i}`;
+        createItemPromises.push(
+          booksService.createBookItem({
+            book_id: parseInt(newBook.id),
+            inventory_code: inventoryCode,
+            status: 'available',
+          })
+        );
+      }
+      await Promise.all(createItemPromises);
+
+      toast.success(`Buku berhasil ditambahkan dengan ${totalItems} eksemplar`);
+      setIsAddDialogOpen(false);
+      loadBooks();
+      // Reset form
+      setFormData({
+        title: '',
+        author: '',
+        category: 'Teknologi',
+        year: new Date().getFullYear().toString(),
+        isbn: '',
+        publisher: '',
+        total: '1',
+        cover_url: '',
+      });
+    } catch (error: any) {
+      console.error('Error creating book:', error);
+      toast.error(error.response?.data?.message || 'Gagal menambahkan buku');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEdit = (book: Book) => {
@@ -139,33 +147,75 @@ export default function BooksPage() {
     setFormData({
       title: book.title,
       author: book.author,
-      category: book.category,
-      year: book.year.toString(),
+      category: book.category || 'Teknologi',
+      year: book.publication_year?.toString() || new Date().getFullYear().toString(),
       isbn: book.isbn || '',
       publisher: book.publisher || '',
-      total: book.total.toString(),
-      description: book.description || '',
+      total: book.totalCopies?.toString() || '1',
+      cover_url: book.cover_url || '',
     });
     setIsEditDialogOpen(true);
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement API call to update book
-    console.log('Update book:', selectedBook?.id, formData);
-    setIsEditDialogOpen(false);
-    setSelectedBook(null);
-    // Reset form
-    setFormData({
-      title: '',
-      author: '',
-      category: 'Teknologi',
-      year: new Date().getFullYear().toString(),
-      isbn: '',
-      publisher: '',
-      total: '1',
-      description: '',
-    });
+    if (!selectedBook) return;
+    setIsSubmitting(true);
+    try {
+      // Update book data
+      await booksService.updateBook(selectedBook.id, {
+        title: formData.title,
+        author: formData.author,
+        category: formData.category,
+        publication_year: parseInt(formData.year),
+        isbn: formData.isbn,
+        publisher: formData.publisher,
+        cover_url: formData.cover_url,
+      });
+
+      // Check if total has increased, add new items
+      const newTotal = parseInt(formData.total);
+      const currentTotal = selectedBook.totalCopies || 0;
+      
+      if (newTotal > currentTotal) {
+        const itemsToAdd = newTotal - currentTotal;
+        const createItemPromises = [];
+        for (let i = 1; i <= itemsToAdd; i++) {
+          const inventoryCode = `${formData.isbn || selectedBook.id}-${Date.now()}-${currentTotal + i}`;
+          createItemPromises.push(
+            booksService.createBookItem({
+              book_id: parseInt(selectedBook.id),
+              inventory_code: inventoryCode,
+              status: 'available',
+            })
+          );
+        }
+        await Promise.all(createItemPromises);
+        toast.success(`Buku diperbarui dan ${itemsToAdd} eksemplar baru ditambahkan`);
+      } else {
+        toast.success('Buku berhasil diperbarui');
+      }
+
+      setIsEditDialogOpen(false);
+      setSelectedBook(null);
+      loadBooks();
+      // Reset form
+      setFormData({
+        title: '',
+        author: '',
+        category: 'Teknologi',
+        year: new Date().getFullYear().toString(),
+        isbn: '',
+        publisher: '',
+        total: '1',
+        cover_url: '',
+      });
+    } catch (error: any) {
+      console.error('Error updating book:', error);
+      toast.error(error.response?.data?.message || 'Gagal memperbarui buku');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = (book: Book) => {
@@ -173,11 +223,18 @@ export default function BooksPage() {
     setIsDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
-    // TODO: Implement API call to delete book
-    console.log('Delete book:', selectedBook?.id);
-    setIsDeleteDialogOpen(false);
-    setSelectedBook(null);
+  const confirmDelete = async () => {
+    if (!selectedBook) return;
+    try {
+      await booksService.deleteBook(selectedBook.id);
+      toast.success('Buku berhasil dihapus');
+      setIsDeleteDialogOpen(false);
+      setSelectedBook(null);
+      loadBooks();
+    } catch (error: any) {
+      console.error('Error deleting book:', error);
+      toast.error(error.response?.data?.message || 'Gagal menghapus buku');
+    }
   };
 
   return (
@@ -282,21 +339,23 @@ export default function BooksPage() {
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="total">Jumlah Eksemplar *</Label>
+                        <Label htmlFor="total">Jumlah Buku *</Label>
                         <Input id="total" name="total" type="number" placeholder="1" value={formData.total} onChange={handleInputChange} required min="1" />
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="description">Deskripsi</Label>
-                        <Textarea id="description" name="description" placeholder="Deskripsi singkat tentang buku..." value={formData.description} onChange={handleInputChange} rows={3} />
+                        <Label htmlFor="cover_url">URL Gambar Cover</Label>
+                        <Input id="cover_url" name="cover_url" placeholder="https://example.com/cover.jpg" value={formData.cover_url} onChange={handleInputChange} />
                       </div>
                     </div>
 
                     <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isSubmitting}>
                         Batal
                       </Button>
-                      <Button type="submit">Tambah Buku</Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? 'Menambahkan...' : 'Tambah Buku'}
+                      </Button>
                     </DialogFooter>
                   </form>
                 </DialogContent>
@@ -307,52 +366,69 @@ export default function BooksPage() {
       </Card>
 
       {/* Books Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredBooks.map((book) => (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Memuat data buku...</p>
+        </div>
+      ) : filteredBooks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">
+            {searchQuery || statusFilter !== 'all' ? 'Tidak ada buku yang sesuai filter' : 'Belum ada buku'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+          {filteredBooks.map((book) => (
           <Card key={book.id} className="overflow-hidden">
             {/* Book Cover */}
-            <div className="relative h-48 bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center">
-              <BookOpen className="h-20 w-20 text-white/80" />
+            <div className="relative w-full aspect-[3/4] bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center overflow-hidden">
+              {book.cover_url ? (
+                <img 
+                  src={book.cover_url} 
+                  alt={book.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <BookOpen className={`h-20 w-20 text-white/80 ${book.cover_url ? 'hidden' : ''}`} />
             </div>
 
             {/* Book Info */}
-            <CardContent className="p-4 space-y-3">
+            <CardContent className="p-3 space-y-2">
               <div>
-                <h3 className="font-semibold text-lg line-clamp-1">{book.title}</h3>
-                <p className="text-sm text-muted-foreground">{book.author}</p>
+                <h3 className="font-semibold text-sm line-clamp-1">{book.title}</h3>
+                <p className="text-xs text-muted-foreground line-clamp-1">{book.author}</p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{book.category}</Badge>
-                <span className="text-sm text-muted-foreground">{book.year}</span>
+              <div className="flex items-center justify-between text-xs">
+                <Badge variant="secondary" className="text-xs">{book.category}</Badge>
+                <span className="text-muted-foreground">{book.publication_year}</span>
               </div>
 
               {/* Availability */}
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Ketersediaan:</p>
-                <div className="flex items-center gap-2">
-                  <Progress value={(book.available / book.total) * 100} className="flex-1" />
-                  <span className="text-sm font-medium">
-                    {book.available}/{book.total}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Ketersediaan:</span>
+                <span className="font-medium">{book.availableCopies || 0} dari {book.totalCopies || 0}</span>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(book)}>
-                  <Pencil className="mr-2 h-3 w-3" />
-                  Edit
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs px-2" onClick={() => handleEdit(book)}>
+                  <Pencil className="h-3 w-3" />
                 </Button>
-                <Button variant="outline" size="sm" className="flex-1 text-destructive hover:text-destructive" onClick={() => handleDelete(book)}>
-                  <Trash2 className="mr-2 h-3 w-3" />
-                  Hapus
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs px-2 text-destructive hover:text-destructive" onClick={() => handleDelete(book)}>
+                  <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Edit Book Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -409,21 +485,35 @@ export default function BooksPage() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="edit-total">Jumlah Eksemplar *</Label>
-                <Input id="edit-total" name="total" type="number" placeholder="1" value={formData.total} onChange={handleInputChange} required min="1" />
+                <Label htmlFor="edit-total">Jumlah Buku *</Label>
+                <Input 
+                  id="edit-total" 
+                  name="total" 
+                  type="number" 
+                  placeholder="1" 
+                  value={formData.total} 
+                  onChange={handleInputChange}
+                  required
+                  min={selectedBook?.totalCopies || 1}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Saat ini: {selectedBook?.totalCopies || 0} eksemplar. Anda hanya bisa menambah, tidak bisa mengurangi.
+                </p>
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="edit-description">Deskripsi</Label>
-                <Textarea id="edit-description" name="description" placeholder="Deskripsi singkat tentang buku..." value={formData.description} onChange={handleInputChange} rows={3} />
+                <Label htmlFor="edit-cover_url">URL Gambar Cover</Label>
+                <Input id="edit-cover_url" name="cover_url" placeholder="https://example.com/cover.jpg" value={formData.cover_url} onChange={handleInputChange} />
               </div>
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
                 Batal
               </Button>
-              <Button type="submit">Simpan Perubahan</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

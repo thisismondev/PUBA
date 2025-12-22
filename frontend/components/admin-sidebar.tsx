@@ -18,8 +18,18 @@ const items = [
     icon: BookOpen,
   },
   {
+    title: 'Item Buku',
+    url: '/admin/book-items',
+    icon: Package,
+  },
+  {
     title: 'Users',
     url: '/admin/users',
+    icon: Users,
+  },
+  {
+    title: 'Registrasi Anggota',
+    url: '/admin/register',
     icon: Users,
   },
   {

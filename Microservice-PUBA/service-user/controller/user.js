@@ -1,5 +1,59 @@
 const db = require('../config/mysql-config');
 
+exports.getAllUsers = async (req, res) => {
+  try {
+    const query = 'SELECT id, email, role FROM user';
+    
+    db.query(query, (err, results) => {
+      if (err) {
+        console.error('Error fetching users:', err);
+        return res.status(500).json({
+          error: 'Gagal mengambil data users',
+        });
+      }
+      
+      return res.status(200).json(results);
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({
+      error: 'Terjadi kesalahan pada server',
+    });
+  }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const { idUser } = req.params;
+    
+    const query = 'DELETE FROM user WHERE id = ?';
+    
+    db.query(query, [idUser], (err, result) => {
+      if (err) {
+        console.error('Error deleting user:', err);
+        return res.status(500).json({
+          error: 'Gagal menghapus user',
+        });
+      }
+      
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          error: 'User tidak ditemukan',
+        });
+      }
+      
+      return res.status(200).json({
+        message: 'User berhasil dihapus',
+      });
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    return res.status(500).json({
+      error: 'Terjadi kesalahan pada server',
+    });
+  }
+};
+
 exports.getFakultas = async (req, res) => {
   try {
     const query = `
@@ -198,19 +252,11 @@ exports.getUserById = (req, res) => {
 
   const query = `
       SELECT 
-        m.nameMhs,
-        m.nimMhs,
-        m.thnMasuk,
-        m.thnLulus,
-        m.semester,
-        m.status,
-        f.namaFakultas,
-        f.kode,
-        f.programStudi,
-        f.jenjang
-      FROM mahasiswa m
-      JOIN fakultas f ON m.id_fakultas = f.id
-      WHERE m.id_User = ?
+        id,
+        email,
+        role
+      FROM user
+      WHERE id = ?
   `;
 
   db.query(query, [idUser], (err, results) => {
@@ -223,9 +269,6 @@ exports.getUserById = (req, res) => {
       return res.status(404).json({ error: 'User tidak ditemukan' });
     }
 
-    res.status(200).json({
-      message: 'Berhasil mengambil data user',
-      data: results[0],
-    });
+    res.status(200).json(results[0]);
   });
 };
